@@ -1,4 +1,4 @@
-# 🎵 Musicano Lite
+# @MusicanoLiteBot
 
 Musicano Lite is a Telegram bot that allows you to search for songs, download them, and sync Spotify playlists directly to Telegram channels.
 

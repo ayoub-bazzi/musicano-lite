@@ -17,25 +17,24 @@ class YouTubeClient:
         # Configure yt-dlp options
         ydl_opts = {
             'format': 'bestaudio/best',
-            'outtmpl': output_path,  # Save exactly to this path
-            'default_search': 'ytsearch',  # Use YouTube Search
+            'outtmpl': output_path,
+            'default_search': 'ytsearch',
             'noplaylist': True,
+            'cookiefile': 'cookies.txt',
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
                 'preferredquality': '192',
             }],
             'quiet': True,
-            'no_warnings': True
+            'no_warnings': True,
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
 
         try:
-            # Run blocking yt-dlp code in a separate thread so bot doesn't freeze
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(None, lambda: self._run_download(ydl_opts, query))
             
-            # Since we specified output_path, we check if the file (or the mp3 version) exists
-            # yt-dlp might append .mp3 to the filename, so we check for that too.
             final_path = output_path + ".mp3"
             if os.path.exists(final_path):
                 return final_path

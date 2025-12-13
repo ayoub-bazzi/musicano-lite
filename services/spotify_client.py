@@ -15,7 +15,6 @@ class SpotifyClient:
             self.sp = None
 
     def get_playlist_tracks(self, playlist_url):
-        """Fetches ONLY the ID, Name, and Artist for a playlist."""
         if not self.sp: return []
         try:
             results = self.sp.playlist_items(
@@ -41,18 +40,37 @@ class SpotifyClient:
             print(f"Spotify Playlist Error: {e}")
             return []
 
-    # --- NEW FUNCTION FOR SINGLE TRACKS ---
+    # --- NEW: Get Metadata from Link (with Image) ---
     def get_track_info(self, track_url):
-        """Converts a Spotify Track URL into a Search Query (Artist - Song)."""
+        """Returns (query, cover_url, title, artist)"""
         if not self.sp: return None
         try:
             track = self.sp.track(track_url)
             name = track['name']
             artist = track['artists'][0]['name']
-            # Return a search query string
-            return f"{artist} - {name} audio"
+            cover_url = track['album']['images'][0]['url'] if track['album']['images'] else None
+            
+            return (f"{artist} - {name} audio", cover_url, name, artist)
         except Exception as e:
             print(f"Spotify Track Error: {e}")
+            return None
+
+    # --- NEW: Search Spotify by Text ---
+    def search_track(self, query):
+        """Searches Spotify for a song and returns best match."""
+        if not self.sp: return None
+        try:
+            results = self.sp.search(q=query, type='track', limit=1)
+            if results['tracks']['items']:
+                track = results['tracks']['items'][0]
+                name = track['name']
+                artist = track['artists'][0]['name']
+                cover_url = track['album']['images'][0]['url'] if track['album']['images'] else None
+                
+                return (f"{artist} - {name} audio", cover_url, name, artist)
+            return None
+        except Exception as e:
+            print(f"Spotify Search Error: {e}")
             return None
 
 spotify_client = SpotifyClient()

@@ -11,8 +11,7 @@ class YouTubeClient:
 
     async def download_song(self, query, output_path):
         """
-        Downloads song + thumbnail.
-        Returns: (audio_path, thumbnail_path)
+        Downloads song ONLY (No thumbnail needed, we get it from Spotify).
         """
         ydl_opts = {
             'format': 'bestaudio/best',
@@ -21,20 +20,14 @@ class YouTubeClient:
             'noplaylist': True,
             'cookiefile': 'cookies.txt',
             
-            # --- FIXED SETTINGS ---
-            'writethumbnail': True,           # Download the image
+            'writethumbnail': False, 
+            
             'postprocessors': [
                 {
                     'key': 'FFmpegExtractAudio',
                     'preferredcodec': 'mp3',
                     'preferredquality': '192',
-                },
-                {
-                    # Convert whatever format (webp/png) to JPG
-                    'key': 'FFmpegThumbnailsConvertor', 
-                    'format': 'jpg',
                 }
-                # Removed 'EmbedThumbnail' to prevent the "File Not Found" crash
             ],
             'quiet': True,
             'no_warnings': True,
@@ -45,24 +38,12 @@ class YouTubeClient:
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(None, lambda: self._run_download(ydl_opts, query))
             
-            # 1. Find Audio File
             final_audio = output_path + ".mp3"
             if not os.path.exists(final_audio) and os.path.exists(output_path):
                 final_audio = output_path
 
-            # 2. Find Thumbnail File
-            # yt-dlp adds .jpg to the output_path because of the convertor
-            final_thumb = output_path + ".jpg"
-            
-            # Double check: sometimes it might be .webp if conversion failed, check for both
-            if not os.path.exists(final_thumb):
-                if os.path.exists(output_path + ".webp"):
-                    final_thumb = output_path + ".webp"
-                else:
-                    final_thumb = None
-
             if os.path.exists(final_audio):
-                return final_audio, final_thumb
+                return final_audio, None # Return None for thumb since get handle externally
                 
             return None, None
         except Exception as e:

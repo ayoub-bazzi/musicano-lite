@@ -9,11 +9,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle text messages (Search or Playlist Links)."""
     text = update.message.text
     
-    if "spotify.com" in text or "open.spotify.com" in text:
+    # --- FIX: Only trap the link if it is actually a PLAYLIST ---
+    if "spotify.com" in text and "/playlist/" in text:
         from handlers.menus import handle_playlist_input
         await handle_playlist_input(update, context)
         return
 
+    # --- EVERYTHING ELSE (Song Names, YouTube Links, Spotify Track Links) ---
     status_msg = await update.message.reply_text(f"🔎 **Searching:** {text}...", parse_mode="Markdown")
     
     temp_dir = f"temp_{uuid.uuid4()}"
@@ -21,7 +23,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file_path_base = os.path.join(temp_dir, "download")
 
     try:
-        # Now returns a tuple (audio, thumbnail)
+        # Download (Audio + Cover)
         audio_path, thumb_path = await youtube_client.download_song(text, file_path_base)
         
         if audio_path and os.path.exists(audio_path):
@@ -32,7 +34,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     with open(thumb_path, 'rb') as thumb_file:
                         await update.message.reply_audio(
                             audio=audio_file, 
-                            thumbnail=thumb_file,  # <--- SEND COVER
+                            thumbnail=thumb_file,
                             title=text, 
                             performer="Musicano Bot"
                         )

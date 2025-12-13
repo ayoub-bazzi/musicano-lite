@@ -21,7 +21,7 @@ class YouTubeClient:
             'noplaylist': True,
             'cookiefile': 'cookies.txt',
             
-            # --- ENABLE THUMBNAILS ---
+            # --- FIXED SETTINGS ---
             'writethumbnail': True,           # Download the image
             'postprocessors': [
                 {
@@ -30,12 +30,11 @@ class YouTubeClient:
                     'preferredquality': '192',
                 },
                 {
-                    'key': 'EmbedThumbnail',  # Embed into the MP3 file
-                },
-                {
-                    'key': 'FFmpegThumbnailsConvertor', # Convert .webp to .jpg/png
+                    # Convert whatever format (webp/png) to JPG
+                    'key': 'FFmpegThumbnailsConvertor', 
                     'format': 'jpg',
                 }
+                # Removed 'EmbedThumbnail' to prevent the "File Not Found" crash
             ],
             'quiet': True,
             'no_warnings': True,
@@ -51,10 +50,16 @@ class YouTubeClient:
             if not os.path.exists(final_audio) and os.path.exists(output_path):
                 final_audio = output_path
 
-            # 2. Find Thumbnail File (yt-dlp adds .jpg to the output_path)
+            # 2. Find Thumbnail File
+            # yt-dlp adds .jpg to the output_path because of the convertor
             final_thumb = output_path + ".jpg"
+            
+            # Double check: sometimes it might be .webp if conversion failed, check for both
             if not os.path.exists(final_thumb):
-                final_thumb = None
+                if os.path.exists(output_path + ".webp"):
+                    final_thumb = output_path + ".webp"
+                else:
+                    final_thumb = None
 
             if os.path.exists(final_audio):
                 return final_audio, final_thumb

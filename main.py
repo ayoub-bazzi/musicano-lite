@@ -1,6 +1,6 @@
 import logging
 import os
-from telegram import Update
+from telegram import Update, BotCommand
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
@@ -14,18 +14,15 @@ from keep_alive import keep_alive
 from database import init_db
 from config import BOT_TOKEN
 
-# --- Import Handlers ---
 from handlers import menus
 from handlers.search import handle_message
 from services.sync_manager import sync_channel_logic
 
-# --- Logging Setup ---
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 
-# --- The Router ---
 async def global_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     data = query.data
@@ -51,35 +48,52 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await menus.start(update, context)
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Use /start to see menu. Send a song name to download it.")
+    text = (
+        "📚 **Musicano Lite Logic**\n\n"
+        "1. **Channels:** Add me as Admin to a channel -> Send me a Spotify Playlist Link.\n"
+        "2. **Sync:** Go to 'My Channels' -> 'Sync Now' to mirror the playlist to the channel.\n"
+        "3. **Search:** Just text me a song name to download it."
+    )
+    await update.message.reply_text(text, parse_mode="Markdown")
 
-# --- HELPER: Setup Cookies ---
+async def contact_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("📞 **Contact Support:**\n\nDeveloper: @Uzomaki_Dev", parse_mode="Markdown")
+
+# --- Helper: Set Menu Commands ---
+async def post_init(application):
+    """Sets the menu button commands on startup."""
+    commands = [
+        BotCommand("start", "Start the bot"),
+        BotCommand("help", "See how the bot works"),
+        BotCommand("contact", "Contact the Developer"),
+    ]
+    await application.bot.set_my_commands(commands)
+    print("✅ Menu Commands Set Successfully")
+
+# --- Helper: Setup Cookies ---
 def setup_cookies():
-    """Writes the cookies from ENV variable to a file for yt-dlp to use."""
     cookies_content = os.getenv("YOUTUBE_COOKIES")
     if cookies_content:
         with open("cookies.txt", "w") as f:
             f.write(cookies_content)
-        print("✅ Cookies file created successfully.")
+        print("✅ Cookies file created.")
     else:
-        print("⚠️ WARNING: No YOUTUBE_COOKIES found in Environment Variables!")
+        print("⚠️ WARNING: No YOUTUBE_COOKIES found!")
 
 def main():
-    # 1. Start Web Server
     keep_alive()
-
-    # 2. Setup Cookies (CRITICAL FIX)
     setup_cookies()
-
-    # 3. Initialize Database
     init_db()
 
-    # 4. Build Bot
     print("🚀 Starting Musicano Lite...")
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    
+    # We add post_init here to run the command setter
+    app = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init).build()
 
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("contact", contact_command)) # Added Contact
+    
     app.add_handler(ChatMemberHandler(menus.on_chat_member_update, ChatMemberHandler.MY_CHAT_MEMBER))
     app.add_handler(CallbackQueryHandler(global_callback_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))

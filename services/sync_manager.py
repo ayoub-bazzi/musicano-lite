@@ -64,7 +64,7 @@ async def sync_channel_logic(update, context):
                     delete_track(s_id)
                     removed_count += 1
                 except Exception as e:
-                    delete_track(s_id) # Ensure DB clean up even if msg delete fails
+                    delete_track(s_id)
 
         # 4. Execute ADDS
         if to_add_items:
@@ -78,25 +78,36 @@ async def sync_channel_logic(update, context):
 
                 temp_dir = f"temp_{uuid.uuid4()}"
                 os.makedirs(temp_dir, exist_ok=True)
-                file_path_base = os.path.join(temp_dir, "song") # No extension yet
+                file_path_base = os.path.join(temp_dir, "song")
                 
                 try:
-                    # Construct search query: "Artist - Song Name audio"
                     search_query = f"{track['artist']} - {track['name']} audio"
                     
-                    # DOWNLOAD
-                    downloaded_path = await youtube_client.download_song(search_query, file_path_base)
+                    # DOWNLOAD (Now returns tuple)
+                    audio_path, thumb_path = await youtube_client.download_song(search_query, file_path_base)
                     
-                    if downloaded_path and os.path.exists(downloaded_path):
+                    if audio_path and os.path.exists(audio_path):
                         # UPLOAD
-                        with open(downloaded_path, 'rb') as f:
-                            msg = await context.bot.send_audio(
-                                chat_id=channel_id,
-                                audio=f,
-                                title=track['name'],
-                                performer=track['artist']
-                            )
-                        # DB Record
+                        with open(audio_path, 'rb') as audio_file:
+                            # Check if we have a thumbnail to send
+                            if thumb_path and os.path.exists(thumb_path):
+                                with open(thumb_path, 'rb') as thumb_file:
+                                    msg = await context.bot.send_audio(
+                                        chat_id=channel_id,
+                                        audio=audio_file,
+                                        thumbnail=thumb_file, # <--- SEND COVER
+                                        title=track['name'],
+                                        performer=track['artist']
+                                    )
+                            else:
+                                # Fallback without cover
+                                msg = await context.bot.send_audio(
+                                    chat_id=channel_id,
+                                    audio=audio_file,
+                                    title=track['name'],
+                                    performer=track['artist']
+                                )
+
                         add_track(track['id'], channel_id, msg.message_id, track['name'])
                         added_count += 1
                     else:
@@ -105,10 +116,9 @@ async def sync_channel_logic(update, context):
                 except Exception as e:
                     logger.error(f"Failed to process {track['name']}: {e}")
                 finally:
-                    # Cleanup
                     if os.path.exists(temp_dir):
                         shutil.rmtree(temp_dir, ignore_errors=True)
-                    await asyncio.sleep(1.0) # Avoid Rate Limits
+                    await asyncio.sleep(1.0)
 
         # Final Report
         timestamp = datetime.now().strftime("%H:%M")

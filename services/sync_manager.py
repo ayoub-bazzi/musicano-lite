@@ -16,9 +16,8 @@ async def sync_channel_logic(update, context):
     query = update.callback_query
     channel_id = int(query.data.split("_")[2])
     
-    # Update Status
     status_msg = await query.edit_message_text(
-        text="🛡️ **Safe Mode Sync**\nProcessing songs one by one to prevent errors...",
+        text="🛡️ **Safe Mode Sync**\nProcessing songs...",
         parse_mode="Markdown"
     )
 
@@ -46,7 +45,7 @@ async def sync_channel_logic(update, context):
         added_count = 0
         removed_count = 0
 
-        # Quick Exit if nothing to do
+        # Quick Exit
         if not to_add_items and not to_remove_ids:
             await status_msg.edit_text(
                 f"✅ **Up to Date**\nChannel matches Spotify perfectly.",
@@ -55,7 +54,7 @@ async def sync_channel_logic(update, context):
             )
             return
 
-        # 3. Execute REMOVES first
+        # 3. Execute REMOVES
         if to_remove_ids:
             await status_msg.edit_text(f"🗑️ Removing {len(to_remove_ids)} songs...")
             for s_id in to_remove_ids:
@@ -65,16 +64,13 @@ async def sync_channel_logic(update, context):
                     delete_track(s_id)
                     removed_count += 1
                 except Exception as e:
-                    logger.error(f"Failed to delete message: {e}")
-                    # Even if Telegram delete fails, remove from DB so we don't loop forever
-                    delete_track(s_id)
+                    delete_track(s_id) # Ensure DB clean up even if msg delete fails
 
-        # 4. Execute ADDS (SEQUENTIAL & SAFE)
+        # 4. Execute ADDS
         if to_add_items:
             total_items = len(to_add_items)
             
             for index, track in enumerate(to_add_items):
-                # Update status
                 if index % 1 == 0:
                     await status_msg.edit_text(
                         f"⏳ **Syncing...**\nProcessing {index+1}/{total_items}: {track['name']}"
@@ -82,57 +78,37 @@ async def sync_channel_logic(update, context):
 
                 temp_dir = f"temp_{uuid.uuid4()}"
                 os.makedirs(temp_dir, exist_ok=True)
-                file_path = os.path.join(temp_dir, "song.m4a")
+                file_path_base = os.path.join(temp_dir, "song") # No extension yet
                 
                 try:
-                    # Spotify URL
-                    spotify_url = f"https://open.spotify.com/track/{track['id']}"
+                    # Construct search query: "Artist - Song Name audio"
+                    search_query = f"{track['artist']} - {track['name']} audio"
                     
-                    # 1. DOWNLOAD
-                    downloaded = await youtube_client.download_track(spotify_url, file_path)
+                    # DOWNLOAD
+                    downloaded_path = await youtube_client.download_song(search_query, file_path_base)
                     
-                    if downloaded and os.path.exists(downloaded):
-                        # FORCE WAIT: Let Windows release the file lock
-                        await asyncio.sleep(2.0)
-                        
-                        # 2. UPLOAD WITH RETRY
-                        uploaded = False
-                        for attempt in range(3): # Try 3 times
-                            try:
-                                with open(downloaded, 'rb') as f:
-                                    msg = await context.bot.send_audio(
-                                        chat_id=channel_id,
-                                        audio=f,
-                                        title=track['name'],
-                                        performer=track['artist']
-                                    )
-                                # Success!
-                                add_track(track['id'], channel_id, msg.message_id, track['name'])
-                                added_count += 1
-                                uploaded = True
-                                break 
-                            except PermissionError:
-                                logger.warning(f"File locked for {track['name']}, waiting... (Attempt {attempt+1})")
-                                await asyncio.sleep(2.0) # Wait 2s and retry
-                            except Exception as e:
-                                logger.error(f"Upload error: {e}")
-                                break
-                        
-                        if not uploaded:
-                            logger.error(f"Failed to upload {track['name']} after 3 attempts.")
+                    if downloaded_path and os.path.exists(downloaded_path):
+                        # UPLOAD
+                        with open(downloaded_path, 'rb') as f:
+                            msg = await context.bot.send_audio(
+                                chat_id=channel_id,
+                                audio=f,
+                                title=track['name'],
+                                performer=track['artist']
+                            )
+                        # DB Record
+                        add_track(track['id'], channel_id, msg.message_id, track['name'])
+                        added_count += 1
+                    else:
+                        logger.error(f"Download failed for {track['name']}")
 
                 except Exception as e:
                     logger.error(f"Failed to process {track['name']}: {e}")
                 finally:
-                    # 3. CLEANUP (Delete immediately before moving to next song)
-                    try:
-                        if os.path.exists(temp_dir):
-                            shutil.rmtree(temp_dir, ignore_errors=True)
-                    except:
-                        pass
-                    
-                    # Tiny pause before next song
-                    await asyncio.sleep(1.0)
+                    # Cleanup
+                    if os.path.exists(temp_dir):
+                        shutil.rmtree(temp_dir, ignore_errors=True)
+                    await asyncio.sleep(1.0) # Avoid Rate Limits
 
         # Final Report
         timestamp = datetime.now().strftime("%H:%M")
@@ -140,11 +116,9 @@ async def sync_channel_logic(update, context):
         
         summary = (
             f"📺 *{channel[2]}*\n"
-            f"🔄 *Status*: ✅ Sync Complete!\n"
-            f"⏱️ *Time*: {timestamp}\n\n"
+            f"🔄 *Sync Complete*\n"
             f"📥 Added: `{added_count}`\n"
-            f"🗑️ Removed: `{removed_count}`\n"
-            f"📂 Total in Playlist: `{len(remote_tracks)}`"
+            f"🗑️ Removed: `{removed_count}`"
         )
         
         await status_msg.edit_text(summary, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(back_btn))

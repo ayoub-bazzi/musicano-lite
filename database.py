@@ -1,61 +1,116 @@
-# database.py
-import sqlite3
-from config import DB_NAME
+import os
+import psycopg2
+from urllib.parse import urlparse
+
+# Get DB URL from Render Environment
+DB_URL = os.getenv("DATABASE_URL")
+
+def get_connection():
+    return psycopg2.connect(DB_URL, sslmode='require')
 
 def init_db():
-    with sqlite3.connect(DB_NAME) as conn:
+    try:
+        conn = get_connection()
         cursor = conn.cursor()
-        # Stores channel info
+        
+        # Create Channels Table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS channels (
-                channel_id INTEGER PRIMARY KEY,
-                user_id INTEGER,
+                channel_id BIGINT PRIMARY KEY,
+                user_id BIGINT,
                 title TEXT,
                 playlist_link TEXT
-            )
+            );
         """)
-        # Stores the "Mirror" state
+        
+        # Create Tracks Table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS posted_tracks (
                 spotify_id TEXT PRIMARY KEY,
-                channel_id INTEGER,
-                telegram_msg_id INTEGER,
+                channel_id BIGINT,
+                telegram_msg_id BIGINT,
                 track_name TEXT
-            )
+            );
         """)
+        
         conn.commit()
+        conn.close()
+        print("✅ Database Initialized (PostgreSQL)")
+    except Exception as e:
+        print(f"❌ DB Init Error: {e}")
 
 # --- Channel CRUD ---
 def add_channel(channel_id, user_id, title, playlist_link):
-    with sqlite3.connect(DB_NAME) as conn:
-        conn.execute("INSERT OR REPLACE INTO channels VALUES (?, ?, ?, ?)", 
-                     (channel_id, user_id, title, playlist_link))
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            INSERT INTO channels (channel_id, user_id, title, playlist_link)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (channel_id) DO UPDATE 
+            SET playlist_link = EXCLUDED.playlist_link, title = EXCLUDED.title;
+        """, (channel_id, user_id, title, playlist_link))
+        conn.commit()
+    finally:
+        conn.close()
 
 def get_user_channels(user_id):
-    with sqlite3.connect(DB_NAME) as conn:
-        return conn.execute("SELECT * FROM channels WHERE user_id = ?", (user_id,)).fetchall()
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT * FROM channels WHERE user_id = %s", (user_id,))
+        return cursor.fetchall()
+    finally:
+        conn.close()
 
 def get_channel(channel_id):
-    with sqlite3.connect(DB_NAME) as conn:
-        return conn.execute("SELECT * FROM channels WHERE channel_id = ?", (channel_id,)).fetchone()
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT * FROM channels WHERE channel_id = %s", (channel_id,))
+        return cursor.fetchone()
+    finally:
+        conn.close()
 
 def delete_channel(channel_id):
-    with sqlite3.connect(DB_NAME) as conn:
-        conn.execute("DELETE FROM channels WHERE channel_id = ?", (channel_id,))
-        conn.execute("DELETE FROM posted_tracks WHERE channel_id = ?", (channel_id,))
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM channels WHERE channel_id = %s", (channel_id,))
+        cursor.execute("DELETE FROM posted_tracks WHERE channel_id = %s", (channel_id,))
+        conn.commit()
+    finally:
+        conn.close()
 
 # --- Track CRUD ---
 def get_channel_tracks(channel_id):
-    """Returns a dictionary: {spotify_id: telegram_msg_id}"""
-    with sqlite3.connect(DB_NAME) as conn:
-        rows = conn.execute("SELECT spotify_id, telegram_msg_id FROM posted_tracks WHERE channel_id = ?", (channel_id,)).fetchall()
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT spotify_id, telegram_msg_id FROM posted_tracks WHERE channel_id = %s", (channel_id,))
+        rows = cursor.fetchall()
         return {row[0]: row[1] for row in rows}
+    finally:
+        conn.close()
 
 def add_track(spotify_id, channel_id, msg_id, name):
-    with sqlite3.connect(DB_NAME) as conn:
-        conn.execute("INSERT OR REPLACE INTO posted_tracks VALUES (?, ?, ?, ?)", 
-                     (spotify_id, channel_id, msg_id, name))
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            INSERT INTO posted_tracks (spotify_id, channel_id, telegram_msg_id, track_name)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (spotify_id) DO NOTHING;
+        """, (spotify_id, channel_id, msg_id, name))
+        conn.commit()
+    finally:
+        conn.close()
 
 def delete_track(spotify_id):
-    with sqlite3.connect(DB_NAME) as conn:
-        conn.execute("DELETE FROM posted_tracks WHERE spotify_id = ?", (spotify_id,))
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM posted_tracks WHERE spotify_id = %s", (spotify_id,))
+        conn.commit()
+    finally:
+        conn.close()

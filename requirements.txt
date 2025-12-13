@@ -1,5 +1,6 @@
 python-telegram-bot
 flask
-gunicorn
-python-dotenv
+spotipy
+psycopg2-binary
+yt-dlp
 ffmpeg-python

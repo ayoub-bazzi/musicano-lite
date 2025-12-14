@@ -12,13 +12,24 @@ from services.youtube_client import youtube_client
 
 logger = logging.getLogger(__name__)
 
+# Global sync cancellation flags
+_sync_cancellation_flags = {}
+
 async def sync_channel_logic(update, context):
     query = update.callback_query
     channel_id = int(query.data.split("_")[2])
+    user_id = update.effective_user.id
+    
+    # Set cancellation flag to False
+    _sync_cancellation_flags[channel_id] = False
+    
+    # Create cancel button
+    keyboard = [[InlineKeyboardButton("🛑 Cancel Sync", callback_data=f"cancel_sync_{channel_id}")]]
     
     status_msg = await query.edit_message_text(
         text="🛡️ **Safe Mode Sync**\nProcessing songs...",
-        parse_mode="Markdown"
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
     try:
@@ -71,9 +82,22 @@ async def sync_channel_logic(update, context):
             total_items = len(to_add_items)
             
             for index, track in enumerate(to_add_items):
+                # Check for cancellation before processing each track
+                if _sync_cancellation_flags.get(channel_id, False):
+                    logger.info(f"Sync cancelled for channel {channel_id}")
+                    await status_msg.edit_text(
+                        "🛑 **Sync Cancelled**\n"
+                        "The sync operation has been cancelled.\n"
+                        "Cleanup completed, returning to menu...",
+                        parse_mode="Markdown",
+                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back to Menu", callback_data="my_channels")]])
+                    )
+                    return
+                
                 if index % 1 == 0:
                     await status_msg.edit_text(
-                        f"⏳ **Syncing...**\nProcessing {index+1}/{total_items}: {track['name']}"
+                        f"⏳ **Syncing...**\nProcessing {index+1}/{total_items}: {track['name']}",
+                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🛑 Cancel Sync", callback_data=f"cancel_sync_{channel_id}")]])
                     )
 
                 temp_dir = f"temp_{uuid.uuid4()}"
@@ -136,3 +160,27 @@ async def sync_channel_logic(update, context):
     except Exception as e:
         logger.error(f"Sync Fatal Error: {e}", exc_info=True)
         await status_msg.edit_text(f"❌ Error: {e}")
+    finally:
+        # Clean up cancellation flag
+        if channel_id in _sync_cancellation_flags:
+            del _sync_cancellation_flags[channel_id]
+
+async def handle_sync_cancellation(update, context):
+    """Handle sync cancellation request"""
+    query = update.callback_query
+    await query.answer()
+    
+    channel_id = int(query.data.split("_")[2])
+    
+    # Set cancellation flag
+    _sync_cancellation_flags[channel_id] = True
+    
+    # Acknowledge cancellation
+    await query.edit_message_text(
+        "🛑 **Sync Cancellation Requested**\n"
+        "The current track will finish processing, then sync will stop.\n"
+        "You will be returned to the menu shortly...",
+        parse_mode="Markdown"
+    )
+    
+    logger.info(f"Sync cancellation requested for channel {channel_id}")

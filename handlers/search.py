@@ -129,12 +129,25 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown"
         )
     elif queue_result["status"] == "queued":
-        await status_msg.edit_text(
-            f"🎵 **Request:** {display_name}\n"
-            f"⏳ **Status:** Added to queue at position {queue_result['position']}\n"
-            f"📊 **Queue:** {queue_result['position']} waiting, {download_queue.get_queue_stats()['active_downloads']}/2 active",
-            parse_mode="Markdown"
-        )
+        # Register for queue status updates
+        try:
+            from queue_status_updater import queue_updater
+            await queue_updater.register_status_message(
+                user_id, 
+                status_msg,
+                {
+                    "position": queue_result["position"],
+                    "display_name": display_name
+                }
+            )
+        except ImportError:
+            # Fallback if updater not available
+            await status_msg.edit_text(
+                f"🎵 **Request:** {display_name}\n"
+                f"⏳ **Status:** Added to queue at position {queue_result['position']}\n"
+                f"📊 **Queue:** {queue_result['position']} waiting, {download_queue.get_queue_stats()['active_downloads']}/2 active",
+                parse_mode="Markdown"
+            )
     elif queue_result["status"] == "already_active":
         await status_msg.edit_text(
             f"🎵 **Request:** {display_name}\n"
@@ -157,10 +170,4 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown"
         )
     
-    # Delete status message after 10 seconds if not started immediately
-    if queue_result["status"] in ["queued", "already_queued", "queue_full", "already_active"]:
-        await asyncio.sleep(10)
-        try:
-            await status_msg.delete()
-        except:
-            pass
+    # Note: No automatic deletion of status messages - they persist and update

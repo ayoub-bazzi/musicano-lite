@@ -1,6 +1,6 @@
 import os
 
-BOT_VERSION = "2.1.0"
+BOT_VERSION = "2.1.1"
 
 DB_NAME = "musicano_lite.db"
 

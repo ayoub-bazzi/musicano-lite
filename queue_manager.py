@@ -75,6 +75,13 @@ class DownloadQueue:
     async def _execute_download(self, user_id: int, callback: Callable, args: tuple, kwargs: dict):
         """Execute the download and handle cleanup"""
         try:
+            # Notify that download has started
+            try:
+                from queue_status_updater import queue_updater
+                await queue_updater.notify_download_started(user_id)
+            except ImportError:
+                pass
+            
             result = await callback(*args, **kwargs)
             self.completed_downloads[user_id] = result
         except Exception as e:
@@ -85,6 +92,13 @@ class DownloadQueue:
                 # Remove from active downloads
                 if user_id in self.active_downloads:
                     del self.active_downloads[user_id]
+                
+                # Clean up status updater
+                try:
+                    from queue_status_updater import queue_updater
+                    await queue_updater.cleanup_user(user_id)
+                except ImportError:
+                    pass
                 
                 # Start next download from queue if available
                 await self._start_next_download()

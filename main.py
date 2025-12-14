@@ -16,7 +16,7 @@ from config import BOT_TOKEN, BOT_VERSION
 
 from handlers import menus
 from handlers.search import handle_message
-from services.sync_manager import sync_channel_logic
+from services.sync_manager import sync_channel_logic, handle_sync_cancellation
 
 # Configure logging
 logging.basicConfig(
@@ -44,6 +44,9 @@ async def global_callback_handler(update: Update, context: ContextTypes.DEFAULT_
         return
     if data.startswith("sync_run_"):
         await sync_channel_logic(update, context)
+        return
+    if data.startswith("cancel_sync_"):
+        await handle_sync_cancellation(update, context)
         return
     
     await query.answer()

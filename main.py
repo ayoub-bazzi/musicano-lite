@@ -53,11 +53,9 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await menus.start(update, context)
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Use /start to see menu. Send a song name to download it.")
+    await update.message.reply_text("Use /start to see menu. Send a song name or spotify link to download it.")
 
-# --- NEW: ABOUT COMMAND ---
 async def about_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Fetch dynamic stats
     user_count, dl_count = get_bot_stats()
     
     text = (
@@ -80,11 +78,9 @@ async def about_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def donate_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
         "❤️ **Support Musicano Lite**\n\n"
-        "Servers and maintenance cost money. If you like this bot, consider buying us a coffee!\n\n"
         "You can donate via the button below:"
     )
-    # Replace this URL with your actual PayPal/Ko-fi/BuyMeACoffee link
-    # If you don't have one, you can link to your contact for now.
+
     donate_url = "https://t.me/Uzomaki_Dev" 
     
     keyboard = [[InlineKeyboardButton("☕ Donate", url=donate_url)]]
@@ -95,7 +91,7 @@ async def post_init(application):
     commands = [
         BotCommand("start", "Start the bot"),
         BotCommand("help", "How to use"),
-        BotCommand("about", "Bot Info & Stats"), # Changed from contact
+        BotCommand("about", "Bot Info"),
         BotCommand("donate", "Support us"),
     ]
     await application.bot.set_my_commands(commands)

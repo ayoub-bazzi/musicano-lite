@@ -63,11 +63,13 @@ async def about_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         user_count, dl_count = get_bot_stats()
         
+        # FIX: The underscore in @Uzomaki_Dev causes a Markdown error.
+        # We escape it with a backslash: @Uzomaki\_Dev
         text = (
             f"ℹ️ **About Musicano Lite**\n\n"
             f"🔺 **Version:** `{BOT_VERSION}`\n"
             f"🔻 **Name:** @MusicanoLiteBot\n"
-            f"✒️ **Contact us:** @Uzomaki_Dev\n"
+            f"✒️ **Contact us:** @Uzomaki\_Dev\n" 
             f"💵 **Donation:** /donate\n"
             f"📣 **Our channel:** [UzomakiDev](https://t.me/UzomakiDev)\n"
             f"👥 **Users:** `{user_count}`\n"

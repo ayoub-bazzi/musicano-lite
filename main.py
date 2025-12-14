@@ -1,6 +1,6 @@
 import logging
 import os
-from telegram import Update, BotCommand
+from telegram import Update, BotCommand, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
@@ -11,8 +11,8 @@ from telegram.ext import (
     ContextTypes
 )
 from keep_alive import keep_alive
-from database import init_db
-from config import BOT_TOKEN
+from database import init_db, register_user, get_bot_stats # <--- IMPORT NEW FUNCTIONS
+from config import BOT_TOKEN, BOT_VERSION # <--- IMPORT VERSION
 
 from handlers import menus
 from handlers.search import handle_message
@@ -27,6 +27,7 @@ async def global_callback_handler(update: Update, context: ContextTypes.DEFAULT_
     query = update.callback_query
     data = query.data
     
+    # 1. Menus
     if data == "start_menu" or data == "my_channels":
         await menus.my_channels(update, context)
         return
@@ -45,40 +46,66 @@ async def global_callback_handler(update: Update, context: ContextTypes.DEFAULT_
     await query.answer()
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Register user in DB
+    user = update.effective_user
+    register_user(user.id)
+    
     await menus.start(update, context)
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Use /start to see menu. Send a song name to download it.")
+
+# --- NEW: ABOUT COMMAND ---
+async def about_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Fetch dynamic stats
+    user_count, dl_count = get_bot_stats()
+    
     text = (
-        "📚 **Musicano Lite Logic**\n\n"
-        "1. **Channels:** Add me as Admin to a channel -> Send me a Spotify Playlist Link.\n"
-        "2. **Sync:** Go to 'My Channels' -> 'Sync Now' to mirror the playlist to the channel.\n"
-        "3. **Search:** Just text me a song name to download it."
+        f"ℹ️ **About Musicano Lite**\n\n"
+        f"🔺 **Version:** `{BOT_VERSION}`\n"
+        f"🔻 **Name:** @MusicanoLiteBot\n"
+        f"✒️ **Contact us:** @Uzomaki_Dev\n"
+        f"💵 **Donation:** /donate\n"
+        f"📣 **Our channel:** [UzomakiDev](https://t.me/UzomakiDev)\n"
+        f"👥 **Users:** `{user_count}`\n"
+        f"⬇️ **Total downloads:** `{dl_count}`"
     )
-    await update.message.reply_text(text, parse_mode="Markdown")
+    
+    # Add a button to the channel
+    keyboard = [[InlineKeyboardButton("📣 Join Channel", url="https://t.me/UzomakiDev")]]
+    
+    await update.message.reply_text(text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
 
-async def contact_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("📞 **Contact Support:**\n\nDeveloper: @Uzomaki_Dev", parse_mode="Markdown")
+# --- NEW: DONATE COMMAND ---
+async def donate_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = (
+        "❤️ **Support Musicano Lite**\n\n"
+        "Servers and maintenance cost money. If you like this bot, consider buying us a coffee!\n\n"
+        "You can donate via the button below:"
+    )
+    # Replace this URL with your actual PayPal/Ko-fi/BuyMeACoffee link
+    # If you don't have one, you can link to your contact for now.
+    donate_url = "https://t.me/Uzomaki_Dev" 
+    
+    keyboard = [[InlineKeyboardButton("☕ Donate", url=donate_url)]]
+    
+    await update.message.reply_text(text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
 
-# --- Helper: Set Menu Commands ---
 async def post_init(application):
-    """Sets the menu button commands on startup."""
     commands = [
         BotCommand("start", "Start the bot"),
-        BotCommand("help", "See how the bot works"),
-        BotCommand("contact", "Contact the Developer"),
+        BotCommand("help", "How to use"),
+        BotCommand("about", "Bot Info & Stats"), # Changed from contact
+        BotCommand("donate", "Support us"),
     ]
     await application.bot.set_my_commands(commands)
     print("✅ Menu Commands Set Successfully")
 
-# --- Helper: Setup Cookies ---
 def setup_cookies():
     cookies_content = os.getenv("YOUTUBE_COOKIES")
     if cookies_content:
         with open("cookies.txt", "w") as f:
             f.write(cookies_content)
-        print("✅ Cookies file created.")
-    else:
-        print("⚠️ WARNING: No YOUTUBE_COOKIES found!")
 
 def main():
     keep_alive()
@@ -86,13 +113,12 @@ def main():
     init_db()
 
     print("🚀 Starting Musicano Lite...")
-    
-    # We add post_init here to run the command setter
     app = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init).build()
 
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(CommandHandler("contact", contact_command)) # Added Contact
+    app.add_handler(CommandHandler("about", about_command))   # NEW
+    app.add_handler(CommandHandler("donate", donate_command)) # NEW
     
     app.add_handler(ChatMemberHandler(menus.on_chat_member_update, ChatMemberHandler.MY_CHAT_MEMBER))
     app.add_handler(CallbackQueryHandler(global_callback_handler))

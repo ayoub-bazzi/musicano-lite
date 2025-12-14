@@ -10,60 +10,64 @@ from database import increment_downloads
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
-
+    
+    # 1. Handle Playlist Links (Sync)
     if "spotify.com" in text and "/playlist/" in text:
         from handlers.menus import handle_playlist_input
         await handle_playlist_input(update, context)
         return
 
-    search_query = None
+    # 2. Metadata Setup
+    search_query = text
     cover_url = None
     song_title = None
     artist_name = None
 
+    # Check Spotify for Metadata
     if "spotify.com" in text and "/track/" in text:
         info = spotify_client.get_track_info(text)
-        if info:
-            search_query, cover_url, song_title, artist_name = info
+        if info: search_query, cover_url, song_title, artist_name = info
     else:
         info = spotify_client.search_track(text)
-        if info:
+        if info: 
             search_query, cover_url, song_title, artist_name = info
         else:
+            # Fallback: Spotify didn't find it, so search_query remains just the text
             search_query = text
 
     display_name = f"{artist_name} - {song_title}" if song_title else text
     status_msg = await update.message.reply_text(f"⬇️ **Downloading:** {display_name}...", parse_mode="Markdown")
 
-    # --- 3. DOWNLOAD ---
     temp_dir = f"temp_{uuid.uuid4()}"
     os.makedirs(temp_dir, exist_ok=True)
     file_path_base = os.path.join(temp_dir, "download")
     
-    cover_path = None
+    final_cover_path = None
 
     try:
-        # Download Cover
+        # A. Try to download Spotify Cover (High Quality)
         if cover_url:
-            cover_path = os.path.join(temp_dir, "cover.jpg")
+            spotify_cover_path = os.path.join(temp_dir, "spotify_cover.jpg")
             try:
-                urllib.request.urlretrieve(cover_url, cover_path)
+                urllib.request.urlretrieve(cover_url, spotify_cover_path)
+                final_cover_path = spotify_cover_path
             except:
-                cover_path = None
+                pass
 
-        # Download Audio
-        audio_path, _ = await youtube_client.download_song(search_query, file_path_base)
+        # B. Download Audio + YouTube Backup Cover
+        audio_path, yt_thumb_path = await youtube_client.download_song(search_query, file_path_base)
         
+        # C. Decide which cover to use
+        if not final_cover_path and yt_thumb_path and os.path.exists(yt_thumb_path):
+            final_cover_path = yt_thumb_path
+
         if audio_path and os.path.exists(audio_path):
             await status_msg.edit_text(f"⬆️ **Uploading...**")
-            
-            # --- INCREMENT STATS HERE ---
-            increment_downloads() 
-            # ----------------------------
+            increment_downloads()
 
             with open(audio_path, 'rb') as audio_file:
-                if cover_path and os.path.exists(cover_path):
-                    with open(cover_path, 'rb') as thumb_file:
+                if final_cover_path and os.path.exists(final_cover_path):
+                    with open(final_cover_path, 'rb') as thumb_file:
                         await update.message.reply_audio(
                             audio=audio_file, 
                             thumbnail=thumb_file,

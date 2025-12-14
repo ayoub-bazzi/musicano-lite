@@ -10,9 +10,6 @@ class YouTubeClient:
         pass
 
     async def download_song(self, query, output_path):
-        """
-        Downloads song ONLY (No thumbnail needed, we get it from Spotify).
-        """
         ydl_opts = {
             'format': 'bestaudio/best',
             'outtmpl': output_path,
@@ -20,13 +17,23 @@ class YouTubeClient:
             'noplaylist': True,
             'cookiefile': 'cookies.txt',
             
-            'writethumbnail': False, 
+            # --- CONNECTION SETTINGS ---
+            'socket_timeout': 30,
+            'retries': 10,
+            'fragment_retries': 10,
+            'ignoreerrors': True,
             
+            # --- THUMBNAIL LOGIC (BACKUP) ---
+            'writethumbnail': True,  # Enable downloading
             'postprocessors': [
                 {
                     'key': 'FFmpegExtractAudio',
                     'preferredcodec': 'mp3',
                     'preferredquality': '192',
+                },
+                {
+                    'key': 'FFmpegThumbnailsConvertor', 
+                    'format': 'jpg', # Force JPG to avoid WebP crashes
                 }
             ],
             'quiet': True,
@@ -38,12 +45,18 @@ class YouTubeClient:
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(None, lambda: self._run_download(ydl_opts, query))
             
+            # Check for Audio
             final_audio = output_path + ".mp3"
             if not os.path.exists(final_audio) and os.path.exists(output_path):
                 final_audio = output_path
 
+            # Check for YouTube Thumbnail (Backup)
+            final_thumb = output_path + ".jpg"
+            if not os.path.exists(final_thumb):
+                final_thumb = None
+
             if os.path.exists(final_audio):
-                return final_audio, None # Return None for thumb since get handle externally
+                return final_audio, final_thumb
                 
             return None, None
         except Exception as e:

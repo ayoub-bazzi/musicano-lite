@@ -117,10 +117,29 @@ def main():
     """Entry point."""
     keep_alive()
     setup_cookies()
-    init_db()
+    
+    # Initialize database with error handling
+    try:
+        init_db()
+        print("✅ Database initialized successfully")
+    except Exception as e:
+        print(f"⚠️ Database initialization warning: {e}")
+        print("⚠️ Bot will continue without database features (stats tracking disabled)")
 
-    print("🚀 Starting Musicano Lite...")
-    app = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init).build()
+    print("🚀 Starting Musicano Lite v2.1.0 with multi-user support...")
+    
+    # Optimized for Render Free tier: 0.1 CPU, 512 MB RAM
+    # concurrent_updates=True allows processing multiple updates simultaneously
+    # pool_timeout=30 seconds for free tier constraints
+    # read_timeout=30, write_timeout=30 for slower connections
+    app = ApplicationBuilder() \
+        .token(BOT_TOKEN) \
+        .concurrent_updates(True) \
+        .pool_timeout(30) \
+        .read_timeout(30) \
+        .write_timeout(30) \
+        .post_init(post_init) \
+        .build()
 
     # Command Handlers
     app.add_handler(CommandHandler("start", start_command))

@@ -36,6 +36,12 @@ async def global_callback_handler(update: Update, context: ContextTypes.DEFAULT_
     if data == "connect_flow":
         await menus.connect_start(update, context)
         return
+    if data == "check_join":
+        await menus.handle_join_check(update, context)
+        return
+    if data == "search_song":
+        await menus.handle_search_prompt(update, context)
+        return
     if data.startswith("dash_"):
         await menus.channel_dashboard(update, context)
         return
@@ -72,7 +78,7 @@ async def about_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"ℹ️ **About Musicano Lite**\n\n"
             f"🔺 **Version:** `{BOT_VERSION}`\n"
             f"🔻 **Name:** @MusicanoLiteBot\n"
-            f"✒️ **Contact us:** @Uzomaki\_Dev\n" 
+            f"✒️ **Contact us:** @Uzomaki\\_Dev\n" 
             f"💵 **Donation:** /donate\n"
             f"📣 **Our channel:** [UzomakiDev](https://t.me/UzomakiDev)\n"
             f"👥 **Users:** `{user_count}`\n"

@@ -8,5 +8,8 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
 SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
 
+# Channel requirement
+REQUIRED_CHANNEL = "@UzomakiDev"
+
 if not BOT_TOKEN:
     print("⚠️ WARNING: BOT_TOKEN is missing! Make sure you added it in Render Environment Variables.")

@@ -41,8 +41,23 @@ async def sync_channel_logic(update, context):
             
         playlist_link = channel[3]
         
-        # 2. Get Lists
-        remote_tracks = spotify_client.get_playlist_tracks(playlist_link) 
+        # 2. Get Lists with Zero-Track Safety
+        remote_tracks = spotify_client.get_playlist_tracks(playlist_link)
+        
+        # CRITICAL SAFETY: Abort if Spotify returns empty
+        if not remote_tracks:
+            await status_msg.edit_text(
+                "⚠️ **Spotify API returned 0 tracks. Sync aborted for safety.**\n\n"
+                "Possible reasons:\n"
+                "• Playlist is empty\n"
+                "• Spotify API rate limit\n"
+                "• Invalid playlist link\n\n"
+                "Please check your playlist and try again.",
+                parse_mode="Markdown",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="my_channels")]])
+            )
+            return
+            
         local_tracks_map = get_channel_tracks(channel_id)
         
         remote_ids = {t['id'] for t in remote_tracks}
@@ -56,10 +71,25 @@ async def sync_channel_logic(update, context):
         added_count = 0
         removed_count = 0
 
-        # Quick Exit
+        # Quick Exit - Up to Date
         if not to_add_items and not to_remove_ids:
             await status_msg.edit_text(
                 f"✅ **Up to Date**\nChannel matches Spotify perfectly.",
+                parse_mode="Markdown",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="my_channels")]])
+            )
+            return
+            
+        # SAFETY CHECK: Prevent mass deletions (>50% of tracks)
+        if local_ids and len(to_remove_ids) > len(local_ids) * 0.5:
+            await status_msg.edit_text(
+                f"⚠️ **Safety Lock Activated**\n\n"
+                f"Sync would remove {len(to_remove_ids)} out of {len(local_ids)} tracks ({len(to_remove_ids)/len(local_ids)*100:.0f}%).\n\n"
+                f"This could indicate:\n"
+                f"• Spotify API issue\n"
+                f"• Wrong playlist\n"
+                f"• Playlist was cleared\n\n"
+                f"**Sync aborted for safety.** Please verify your playlist.",
                 parse_mode="Markdown",
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="my_channels")]])
             )

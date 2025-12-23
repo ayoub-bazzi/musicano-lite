@@ -3,7 +3,7 @@
 ![Status](https://img.shields.io/badge/Status-Operational-brightgreen?style=for-the-badge)
 ![Hosting](https://img.shields.io/badge/Hosting-Render_Free_Tier-purple?style=for-the-badge)
 ![RAM Usage](https://img.shields.io/badge/RAM_Limit-512MB-red?style=for-the-badge)
-![Built By](https://img.shields.io/badge/Developer-Uzomaki.dev-blue?style=for-the-badge)
+[![Bot](https://img.shields.io/badge/Bot-t.me/MusicanoLiteBoti-blue?style=for-the-badge)](https://t.me/MusicanoLiteBoti)
 
 > **A high-performance Telegram Music Bot engineered to run on strict resource limits.**
 
